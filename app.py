@@ -7,13 +7,16 @@ import io
 st.set_page_config(page_title="מיזוג אנשי קשר", layout="wide")
 st.title("🔄 מיזוג אנשי קשר מקבצים שונים")
 
-uploaded_files = st.file_uploader("העלה קבצי CSV, DOCX, או VCF", accept_multiple_files=True, type=['csv', 'docx', 'vcf'])
+uploaded_files = st.file_uploader(
+    "העלה קבצי CSV, DOCX, או VCF", 
+    accept_multiple_files=True, 
+    type=['csv', 'docx', 'vcf']
+)
 
 all_contacts = []
 
 def parse_csv(file):
-    df = pd.read_csv(file)
-    return df
+    return pd.read_csv(file)
 
 def parse_docx(file):
     doc = docx.Document(file)
@@ -63,18 +66,20 @@ for file in uploaded_files:
 
 if all_contacts:
     df_all = pd.concat(all_contacts, ignore_index=True)
-   # הגדר שמות עמודות לפי מספר העמודות בפועל
-column_names = ['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל']
-df_all = df_all.iloc[:, :len(column_names)]  # חיתוך לעד 5 עמודות
-df_all.columns = column_names[:df_all.shape[1]]  # התאמה לפי הכמות שיש בפועל
 
-    # הסרת כפילויות לפי טלפון או מייל
-df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
+    # Keep up to 5 columns, rename accordingly
+    column_names = ['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל']
+    df_all = df_all.iloc[:, :len(column_names)]
+    df_all.columns = column_names[:df_all.shape[1]]
 
+    # Remove duplicates
+    df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
+
+    # Show table
     st.success("הטבלה נוצרה בהצלחה!")
     st.dataframe(df_all, use_container_width=True)
 
-    # הורדה כ-Excel
+    # Export to Excel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_all.to_excel(writer, index=False, sheet_name='Contacts')
