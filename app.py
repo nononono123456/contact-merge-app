@@ -15,15 +15,12 @@ uploaded_files = st.file_uploader(
 
 all_contacts = []
 
-# קריאה מקובץ CSV
 def parse_csv(file):
     return pd.read_csv(file)
 
-# קריאה מקובץ Excel
 def parse_excel(file):
     return pd.read_excel(file)
 
-# קריאה מטבלת Word (docx)
 def parse_docx(file):
     doc = docx.Document(file)
     data = []
@@ -34,7 +31,6 @@ def parse_docx(file):
                 data.append(row_data)
     return pd.DataFrame(data)
 
-# קריאה מקובץ VCF
 def parse_vcf(file):
     data = []
     text = file.read().decode('utf-8')
@@ -57,7 +53,6 @@ def parse_vcf(file):
         data.append([name_he, name_en, tel, tel2, email])
     return pd.DataFrame(data, columns=['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל'])
 
-# קריאת כל הקבצים שהועלו
 for file in uploaded_files:
     filename = file.name.lower()
     try:
@@ -77,26 +72,61 @@ for file in uploaded_files:
     except Exception as e:
         st.error(f"שגיאה בקובץ {file.name}: {e}")
 
-# עיבוד וייצוא
 if all_contacts:
     df_all = pd.concat(all_contacts, ignore_index=True)
 
-    # שמות עמודות סטנדרטיים
-    column_names = ['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל']
-    df_all = df_all.iloc[:, :len(column_names)]
-    df_all.columns = column_names[:df_all.shape[1]]
+    # מחיקת עמודות עם "ספק"
+    cols_to_drop = [col for col in df_all.columns if 'ספק' in col]
+    df_all = df_all.drop(columns=cols_to_drop)
 
-    # הסרת כפילויות
+    # מיפוי עמודות לפי מילים עיקריות בעברית ואנגלית
+    columns_map = {
+        'שם בעברית': None,
+        'שם באנגלית': None,
+        'טלפון': None,
+        'טלפון נוסף': None,
+        'מייל': None
+    }
+
+    for col in df_all.columns:
+        col_lower = col.lower()
+        if any(k in col_lower for k in ['שם', 'name']):
+            if 'עברית' in col_lower or 'hebrew' in col_lower:
+                columns_map['שם בעברית'] = col
+            elif 'english' in col_lower or 'אנגלית' in col_lower:
+                columns_map['שם באנגלית'] = col
+            else:
+                if columns_map['שם בעברית'] is None:
+                    columns_map['שם בעברית'] = col
+                elif columns_map['שם באנגלית'] is None:
+                    columns_map['שם באנגלית'] = col
+        elif 'טלפון' in col_lower or 'phone' in col_lower or 'mobile' in col_lower:
+            if columns_map['טלפון'] is None:
+                columns_map['טלפון'] = col
+            else:
+                columns_map['טלפון נוסף'] = col
+        elif 'מייל' in col_lower or 'email' in col_lower:
+            columns_map['מייל'] = col
+
+    data_for_df = {}
+    for key, col_name in columns_map.items():
+        if col_name and col_name in df_all.columns:
+            data_for_df[key] = df_all[col_name]
+        else:
+            data_for_df[key] = ""
+
+    df_all = pd.DataFrame(data_for_df)
+
+    # הסרת כפילויות על פי טלפון ומייל
     df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
 
-    # הצגת הטבלה
     st.success("✅ הטבלה נוצרה בהצלחה!")
     st.dataframe(df_all, use_container_width=True)
 
-    # ייצוא לאקסל
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_all.to_excel(writer, index=False, sheet_name='Contacts')
+
     st.download_button(
         label="📥 הורד כקובץ Excel",
         data=output.getvalue(),
