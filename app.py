@@ -8,25 +8,33 @@ st.set_page_config(page_title="מיזוג אנשי קשר", layout="wide")
 st.title("🔄 מיזוג אנשי קשר מקבצים שונים")
 
 uploaded_files = st.file_uploader(
-    "העלה קבצי CSV, DOCX, או VCF", 
-    accept_multiple_files=True, 
-    type=['csv', 'docx', 'vcf']
+    "העלה קבצי CSV, Excel, DOCX, או VCF",
+    accept_multiple_files=True,
+    type=['csv', 'xlsx', 'docx', 'vcf']
 )
 
 all_contacts = []
 
+# קריאה מקובץ CSV
 def parse_csv(file):
     return pd.read_csv(file)
 
+# קריאה מקובץ Excel
+def parse_excel(file):
+    return pd.read_excel(file)
+
+# קריאה מטבלת Word (docx)
 def parse_docx(file):
     doc = docx.Document(file)
     data = []
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if text:
-            data.append(text.split())
+    for table in doc.tables:
+        for row in table.rows:
+            row_data = [cell.text.strip() for cell in row.cells]
+            if any(row_data):
+                data.append(row_data)
     return pd.DataFrame(data)
 
+# קריאה מקובץ VCF
 def parse_vcf(file):
     data = []
     text = file.read().decode('utf-8')
@@ -49,37 +57,43 @@ def parse_vcf(file):
         data.append([name_he, name_en, tel, tel2, email])
     return pd.DataFrame(data, columns=['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל'])
 
+# קריאת כל הקבצים שהועלו
 for file in uploaded_files:
     filename = file.name.lower()
     try:
         if filename.endswith('.csv'):
             df = parse_csv(file)
+        elif filename.endswith('.xlsx'):
+            df = parse_excel(file)
         elif filename.endswith('.docx'):
             df = parse_docx(file)
         elif filename.endswith('.vcf'):
             df = parse_vcf(file)
         else:
             continue
+        st.write(f"✅ נטען קובץ: {file.name}")
+        st.write(df.head())
         all_contacts.append(df)
     except Exception as e:
         st.error(f"שגיאה בקובץ {file.name}: {e}")
 
+# עיבוד וייצוא
 if all_contacts:
     df_all = pd.concat(all_contacts, ignore_index=True)
 
-    # Keep up to 5 columns, rename accordingly
+    # שמות עמודות סטנדרטיים
     column_names = ['שם בעברית', 'שם באנגלית', 'טלפון', 'טלפון נוסף', 'מייל']
     df_all = df_all.iloc[:, :len(column_names)]
     df_all.columns = column_names[:df_all.shape[1]]
 
-    # Remove duplicates
+    # הסרת כפילויות
     df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
 
-    # Show table
-    st.success("הטבלה נוצרה בהצלחה!")
+    # הצגת הטבלה
+    st.success("✅ הטבלה נוצרה בהצלחה!")
     st.dataframe(df_all, use_container_width=True)
 
-    # Export to Excel
+    # ייצוא לאקסל
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_all.to_excel(writer, index=False, sheet_name='Contacts')
@@ -89,3 +103,5 @@ if all_contacts:
         file_name="contacts.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+else:
+    st.info("🛈 אנא העלה קבצים כדי להתחיל")
