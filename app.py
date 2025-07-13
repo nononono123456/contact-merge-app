@@ -69,7 +69,7 @@ df_all = df_all.iloc[:, :len(column_names)]  # חיתוך לעד 5 עמודות
 df_all.columns = column_names[:df_all.shape[1]]  # התאמה לפי הכמות שיש בפועל
 
     # הסרת כפילויות לפי טלפון או מייל
-    df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
+df_all = df_all.drop_duplicates(subset=['טלפון', 'מייל'], keep='first')
 
     st.success("הטבלה נוצרה בהצלחה!")
     st.dataframe(df_all, use_container_width=True)
